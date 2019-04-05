@@ -159,7 +159,7 @@ exec { 'flask_db_migrate':
     command     => "${venvpath}/bin/flask db migrate",
     cwd         => '/var/www/lvfs/admin',
     refreshonly => true,
-    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
+    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'], File['/var/www/lvfs/admin/app/custom.cfg'] ],
     subscribe   =>  Vcsrepo['/var/www/lvfs/admin'],
 }
 
@@ -167,7 +167,7 @@ exec { 'flask_db_upgrade':
     command     => "${venvpath}/bin/flask db upgrade",
     cwd         => '/var/www/lvfs/admin',
     refreshonly => true,
-    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
+    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'], File['/var/www/lvfs/admin/app/custom.cfg'] ],
     subscribe   =>  Exec['flask_db_migrate'],
 }
 
@@ -481,10 +481,17 @@ MaxEmbeddedPE 100M
 ",
     require => Package['clamav'],
 }
+
+exec { 'clamav_update':
+    command     => '/bin/freshclam',
+    refreshonly => true,
+    require     => [Package['clamav'], Package['clamav-update']],
+}
+
 service { 'clamd@scan':
     ensure  => 'running',
     enable  => true,
-    require => [ Package['clamav'], File['/etc/clamd.d/scan.conf'] ],
+    require => [ Package['clamav'], File['/etc/clamd.d/scan.conf'], Exec['clamav_update'] ],
 }
 
 # fixes permissions after a key has been imported
