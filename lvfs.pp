@@ -143,9 +143,9 @@ package { 'gobject-introspection-devel':
     ensure => installed,
 }
 exec { 'virtualenv_create':
-    command     => "/usr/bin/virtualenv-3.6 ${venvpath}",
-    refreshonly => true,
-    require     => [ Package['python36-virtualenv'] ],
+    command => "/usr/bin/virtualenv-3.6 ${venvpath}",
+    unless  => "test -d  ${venvpath}",
+    require => [ Package['python36-virtualenv'] ],
 }
 exec { 'pip_requirements_install':
     command     => "${venvpath}/bin/pip3 install -r /var/www/lvfs/admin/requirements.txt",
