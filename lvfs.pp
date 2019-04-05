@@ -155,12 +155,20 @@ exec { 'pip_requirements_install':
     refreshonly => true,
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
 }
+exec { 'flask_db_migrate':
+    command     => "${venvpath}/bin/flask db migrate",
+    cwd         => '/var/www/lvfs/admin',
+    refreshonly => true,
+    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
+    subscribe   =>  Vcsrepo['/var/www/lvfs/admin'],
+}
+
 exec { 'flask_db_upgrade':
     command     => "${venvpath}/bin/flask db upgrade",
     cwd         => '/var/www/lvfs/admin',
     refreshonly => true,
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
-    subscribe   =>  Vcsrepo['/var/www/lvfs/admin'],
+    subscribe   =>  Exec['flask_db_migrate'],
 }
 
 # required for the PKCS#7 support
