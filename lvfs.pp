@@ -1,6 +1,6 @@
 $venvpath = '/usr/lib/lvfs/env36'
 if $use_letsencrypt {
-  $nginx_letsencrypt =  @("END")
+  $nginx_letsencrypt = "
  only allow http:// URIs
 if (\$scheme != \"https\") {
     return 301 https://\$server_name\$request_uri;
@@ -14,8 +14,7 @@ include /etc/letsencrypt/options-ssl-nginx.conf;
 ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 location /.well-known/ {
     alias /var/www/.well-known/;
-}
-| END
+}"
 } else {
     $nginx_letsencrypt = ''
 }
