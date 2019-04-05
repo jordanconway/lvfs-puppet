@@ -159,7 +159,9 @@ exec { 'flask_db_migrate':
     command     => "${venvpath}/bin/flask db migrate",
     cwd         => '/var/www/lvfs/admin',
     refreshonly => true,
+    # lint:ignore:140chars
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'], File['/var/www/lvfs/admin/app/custom.cfg'] ],
+    # lint:endignore
     subscribe   =>  Vcsrepo['/var/www/lvfs/admin'],
 }
 
@@ -167,7 +169,9 @@ exec { 'flask_db_upgrade':
     command     => "${venvpath}/bin/flask db upgrade",
     cwd         => '/var/www/lvfs/admin',
     refreshonly => true,
+    # lint:ignore:140chars
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'], File['/var/www/lvfs/admin/app/custom.cfg'] ],
+    # lint:endignore
     subscribe   =>  Exec['flask_db_migrate'],
 }
 
@@ -244,7 +248,13 @@ file { '/etc/tmpfiles.d/uwsgi.conf':
     content => 'D /run/uwsgi 0770 uwsgi uwsgi -',
     require => Package['uwsgi'],
 }
-
+file { '/var/uwsgi':
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    mode    =>  '0770',
+    require => Package['uwsgi'],
+}
 file { '/etc/uwsgi.d/lvfs.ini':
     ensure  => 'file',
     owner   => 'uwsgi',
@@ -271,7 +281,7 @@ harakiri = 180
 service { 'uwsgi':
     ensure    => 'running',
     enable    => true,
-    require   => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'] ],
+    require   => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'],File['/var/uwsgi'] ],
     subscribe => File['/var/www/lvfs/admin/app/custom.cfg'],
 }
 
