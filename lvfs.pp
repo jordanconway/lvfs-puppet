@@ -121,9 +121,6 @@ package { 'bsdtar':
 package { 'git':
     ensure => installed,
 }
-package { 'GeoIP-devel':
-    ensure => installed,
-}
 package { 'python36-psutil':
     ensure => installed,
 }
@@ -142,6 +139,10 @@ package { 'cairo-gobject-devel':
 package { 'gobject-introspection-devel':
     ensure => installed,
 }
+package { 'GeoIP-devel':
+    ensure => installed,
+}
+
 exec { 'virtualenv_create':
     command => "/usr/bin/virtualenv-3.6 ${venvpath}",
     unless  => "/bin/test -d  ${venvpath}",
