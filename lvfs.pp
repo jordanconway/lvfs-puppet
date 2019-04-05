@@ -350,7 +350,7 @@ http {
         server_name  localhost;
         root         /usr/share/nginx/html;
         client_max_body_size 80M;
-        
+
         ${nginx_letsencrypt}
 
         # Prevent browsers from incorrectly detecting non-scripts as scripts
@@ -500,7 +500,7 @@ MaxEmbeddedPE 100M
 exec { 'clamav_update':
     command     => '/bin/freshclam',
     refreshonly => true,
-    require     => [Package['clamav'], Package['clamav-update']],
+    subscribe   => Package['clamav-update'],
 }
 
 service { 'clamd@scan':
