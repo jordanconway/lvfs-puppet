@@ -1,11 +1,48 @@
+$venvpath = '/usr/lib/lvfs/env36'
+
+if $dbhost == 'localhost' {
+    $dbsocket = '&unix_socket=/var/lib/mysql/mysql.sock'
+    # set up the database
+    package { 'mariadb-server':
+      ensure => installed,
+    }
+    package { 'mariadb':
+      ensure => installed,
+    }
+    file { '/etc/my.cnf.d/00-lvfs.cnf':
+        ensure  => 'file',
+        content => "# Managed by Puppet, DO NOT EDIT
+    [mysqld]
+    skip-networking
+    max_allowed_packet=60M
+    wait_timeout = 6000000
+    skip-name-resolve
+    max_connect_errors = 1000
+    ",
+        require => Package['mariadb-server'],
+    }
+    service { 'mariadb':
+        ensure  => 'running',
+        enable  => true,
+        require => Package['mariadb-server'],
+    }
+
+} else {
+    $dbsocket = ''
+    package { 'mariadb':
+      ensure => installed,
+    }
+}
+
+
 file { '/var/www':
     ensure   => 'directory',
 }
 file { '/var/www/lvfs':
-    ensure   => 'directory',
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
-    require  => [ File['/var/www'], Package['uwsgi'] ],
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    require => [ File['/var/www'], Package['uwsgi'] ],
 }
 vcsrepo { '/var/www/lvfs/admin':
     ensure   => latest,
@@ -17,28 +54,28 @@ vcsrepo { '/var/www/lvfs/admin':
     require  => [ File['/var/www/lvfs'], Package['uwsgi']],
 }
 file { '/var/www/lvfs/admin/deleted':
-    ensure   => 'directory',
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
-    require  => [ Vcsrepo['/var/www/lvfs/admin'], Package['uwsgi'] ],
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    require => [ Vcsrepo['/var/www/lvfs/admin'], Package['uwsgi'] ],
 }
 file { '/var/www/lvfs/admin/hwinfo':
-    ensure   => 'directory',
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
-    require  => [ Vcsrepo['/var/www/lvfs/admin'], Package['uwsgi'] ],
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    require => [ Vcsrepo['/var/www/lvfs/admin'], Package['uwsgi'] ],
 }
 file { '/var/www/lvfs/downloads':
-    ensure   => 'directory',
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
-    require  => [ File['/var/www/lvfs'], Package['uwsgi'] ],
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    require => [ File['/var/www/lvfs'], Package['uwsgi'] ],
 }
 file { '/var/www/lvfs/backup':
     ensure  => 'directory',
     owner   => 'uwsgi',
     group   => 'uwsgi',
-    require  => [ File['/var/www/lvfs'], Package['uwsgi'] ],
+    require => [ File['/var/www/lvfs'], Package['uwsgi'] ],
 }
 file { '/var/www/lvfs/admin/app/custom.cfg':
     ensure  => 'file',
@@ -61,7 +98,7 @@ UPLOAD_DIR = '/var/www/lvfs/admin/uploads'
 RESTORE_DIR = '/var/www/lvfs/admin/deleted'
 HWINFO_DIR = '/var/www/lvfs/admin/hwinfo'
 KEYRING_DIR = '/var/www/lvfs/.gnupg'
-SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://${dbusername}:${dbpassword}@localhost/lvfs?charset=utf8mb4&unix_socket=/var/lib/mysql/mysql.sock'
+SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://${dbusername}:${dbpassword}@${dbhost}/${dbname}?charset=utf8mb4${dbsocket}'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 MYSQL_DATABASE_CHARSET = 'utf8mb4'
 SESSION_COOKIE_SECURE = ${using_ssl}
@@ -84,13 +121,16 @@ package { 'bsdtar':
 package { 'git':
     ensure => installed,
 }
-package { 'python34-psutil':
+package { 'GeoIP-devel':
     ensure => installed,
 }
-package { 'python34-pip':
+package { 'python36-psutil':
     ensure => installed,
 }
-package { 'python34-virtualenv':
+package { 'python36-pip':
+    ensure => installed,
+}
+package { 'python36-virtualenv':
     ensure => installed,
 }
 package { 'mariadb-devel':
@@ -103,15 +143,15 @@ package { 'gobject-introspection-devel':
     ensure => installed,
 }
 exec { 'virtualenv_create':
-    command     => '/usr/bin/virtualenv /usr/lib/lvfs/env',
+    command     => "/usr/bin/virtualenv-3.6 ${venvpath}",
     refreshonly => true,
-    require     => [ Package['python34-virtualenv'] ],
+    require     => [ Package['python36-virtualenv'] ],
 }
 exec { 'pip_requirements_install':
-    command     => '/usr/lib/lvfs/env34/bin/pip3 install -r /var/www/lvfs/admin/requirements.txt',
+    command     => "${venvpath}/bin/pip3 install -r /var/www/lvfs/admin/requirements.txt",
     path        => '/usr/bin',
     refreshonly => true,
-    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python34-pip'], Exec['virtualenv_create'] ],
+    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
 }
 
 # required for the PKCS#7 support
@@ -119,103 +159,85 @@ package { 'gnutls-utils':
     ensure => installed,
 }
 
-# set up the database
-package { 'mariadb-server':
-  ensure => installed,
+
+# lint:ignore:140chars
+cron { 'purgedelete':
+    command     => "cd /var/www/lvfs/admin; ${venvpath}/bin/python3 /var/www/lvfs/admin/cron.py purgedelete >> /var/log/uwsgi/lvfs-firmware.log 2>&1",
+    user        => 'uwsgi',
+    environment => 'LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg',
+    minute      => 0,
+    hour        => 0,
+    require     => Vcsrepo['/var/www/lvfs/admin'],
 }
-file { '/etc/my.cnf.d/00-lvfs.cnf':
-    ensure => "file",
-    content => "# Managed by Puppet, DO NOT EDIT
-[mysqld]
-skip-networking
-max_allowed_packet=60M
-wait_timeout = 6000000
-skip-name-resolve
-max_connect_errors = 1000
-",
-    require => Package['mariadb-server'],
+cron { 'stats':
+    command     => "cd /var/www/lvfs/admin; ${venvpath}/bin/python3 /var/www/lvfs/admin/cron.py stats >> /var/log/uwsgi/lvfs-stats.log 2>&1",
+    user        => 'uwsgi',
+    environment => 'LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg',
+    minute      => 0,
+    hour        => 2,
+    require     => Vcsrepo['/var/www/lvfs/admin'],
+}
+cron { 'sign-firmware':
+    command     => "cd /var/www/lvfs/admin; ${venvpath}/bin/python3 /var/www/lvfs/admin/cron.py firmware >> /var/log/uwsgi/lvfs-firmware.log 2>&1",
+    user        => 'uwsgi',
+    environment => 'LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg',
+    hour        => '*',
+    minute      => '*/5',
+    require     => Vcsrepo['/var/www/lvfs/admin'],
+}
+cron { 'fwchecks':
+    command     => "cd /var/www/lvfs/admin; ${venvpath}/bin/python3 /var/www/lvfs/admin/cron.py fwchecks >> /var/log/uwsgi/lvfs-firmware.log 2>&1",
+    user        => 'uwsgi',
+    environment => 'LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg',
+    hour        => '*',
+    minute      => '*/5',
+    require     => Vcsrepo['/var/www/lvfs/admin'],
+}
+cron { 'sign-metadata':
+    command     => "cd /var/www/lvfs/admin; ${venvpath}/bin/python3 /var/www/lvfs/admin/cron.py firmware metadata >> /var/log/uwsgi/lvfs-metadata.log 2>&1",
+    user        => 'uwsgi',
+    environment => 'LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg',
+    hour        => '*',
+    minute      => '*/30',
+    require     => Vcsrepo['/var/www/lvfs/admin'],
 }
 cron { 'mysqldump':
-    command => '/usr/bin/mysqldump --single-transaction --default-character-set=utf8mb4 --ignore-table=lvfs.settings lvfs | gzip > /var/www/lvfs/backup/lvfs_$( date +"\%Y\%m\%d" ).sql.gz',
+    command => "/usr/bin/mysqldump -h ${dbhost} -u ${dbuser} -p ${dbpassword} --single-transaction --default-character-set=utf8mb4 --ignore-table=lvfs.settings ${dbname} | gzip > /var/www/lvfs/backup/lvfs_$( date +\"\\%Y\\%m\\%d\" ).sql.gz",
     user    => 'root',
     hour    => 0,
     minute  => 0,
-    require => Package['mariadb-server'],
+    require => Package['mariadb'],
 }
-cron { 'purgedelete':
-    command => 'cd /var/www/lvfs/admin; LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg /usr/lib/lvfs/env34/bin/python3 /var/www/lvfs/admin/cron.py purgedelete >> /var/log/uwsgi/lvfs-firmware.log 2>&1',
-    user    => 'uwsgi',
-    hour    => 0,
-    minute  => 0,
-    require => Vcsrepo['/var/www/lvfs/admin'],
-}
-cron { 'sign-firmware':
-    command => 'cd /var/www/lvfs/admin; LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg /usr/lib/lvfs/env34/bin/python3 /var/www/lvfs/admin/cron.py firmware >> /var/log/uwsgi/lvfs-firmware.log 2>&1',
-    user    => 'uwsgi',
-    hour    => '*',
-    minute  => '*/5',
-    require => Vcsrepo['/var/www/lvfs/admin'],
-}
-cron { 'fwchecks':
-    command => 'cd /var/www/lvfs/admin; LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg /usr/lib/lvfs/env34/bin/python3 /var/www/lvfs/admin/cron.py fwchecks >> /var/log/uwsgi/lvfs-firmware.log 2>&1',
-    user    => 'uwsgi',
-    hour    => '*',
-    minute  => '*/5',
-    require => Vcsrepo['/var/www/lvfs/admin'],
-}
-cron { 'sign-metadata':
-    command => 'cd /var/www/lvfs/admin; LVFS_APP_SETTINGS=/var/www/lvfs/admin/app/custom.cfg /usr/lib/lvfs/env34/bin/python3 /var/www/lvfs/admin/cron.py firmware metadata >> /var/log/uwsgi/lvfs-metadata.log 2>&1',
-    user    => 'uwsgi',
-    hour    => '*',
-    minute  => '*/30',
-    require => Vcsrepo['/var/www/lvfs/admin'],
-}
-service { 'mariadb':
-    ensure => 'running',
-    enable => true,
-    require => Package['mariadb-server'],
-}
-file { '/var/lib/mysql/lvfs.sql':
-    ensure => "file",
-    content => "
-CREATE DATABASE lvfs;
-CREATE USER '${dbusername}'@'localhost' IDENTIFIED BY '${dbpassword}';
-USE lvfs;
-GRANT ALL ON lvfs.* TO '${dbusername}'@'localhost';
-SOURCE /var/www/lvfs/admin/schema.sql
-",
-    require => [ Package['mariadb-server'], Vcsrepo['/var/www/lvfs/admin'] ],
-}
-
+# lint:endignore
 # use uWSGI
-package { 'uwsgi-plugin-python34':
+package { 'uwsgi-plugin-python36':
     ensure => installed,
 }
 package { 'uwsgi':
     ensure => installed,
 }
 file { '/var/log/uwsgi':
-    ensure   => 'directory',
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
-    require  => Package['uwsgi'],
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    require => Package['uwsgi'],
 }
 file { '/etc/tmpfiles.d/uwsgi.conf':
-    ensure => "file",
-    content => "D /run/uwsgi 0770 uwsgi uwsgi -",
+    ensure  => 'file',
+    content => 'D /run/uwsgi 0770 uwsgi uwsgi -',
     require => Package['uwsgi'],
 }
 
 file { '/etc/uwsgi.d/lvfs.ini':
-    ensure   => "file",
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
+    ensure  => 'file',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
     content => "# Managed by Puppet, DO NOT EDIT
 [uwsgi]
 chdir = /var/www/lvfs/admin
-virtualenv = /usr/lib/lvfs/env34
+virtualenv = ${venvpath}
 module = app:app
-plugins = python34
+plugins = python36
 uid = uwsgi
 gid = uwsgi
 socket = /run/uwsgi/%n.socket
@@ -230,8 +252,8 @@ harakiri = 180
     require => Package['uwsgi'],
 }
 service { 'uwsgi':
-    ensure => 'running',
-    enable => true,
+    ensure  => 'running',
+    enable  => true,
     require => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'] ],
 }
 
@@ -246,7 +268,7 @@ package { 'nginx':
     ensure => installed,
 }
 file { '/etc/nginx/nginx.conf':
-    ensure => "file",
+    ensure  => 'file',
     content => "# Managed by Puppet, DO NOT EDIT
 user nginx;
 worker_processes auto;
@@ -279,24 +301,24 @@ http {
         listen       80 default_server;
         listen       [::]:80 default_server;
 
-        server_name  ${server_fqdn};
+        server_name  localhost;
         root         /usr/share/nginx/html;
         client_max_body_size 80M;
 
         # only allow http:// URIs
-        if (\$scheme != \"https\") {
-            return 301 https://\$server_name\$request_uri;
-        }
+        #if (\$scheme != \"https\") {
+        #    return 301 https://\$server_name\$request_uri;
+        #}
 
         # support SSL using Let's Encrypt
-        listen       443 ssl;
-        ssl_certificate /etc/letsencrypt/live/${server_fqdn}/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/${server_fqdn}/privkey.pem;
-        include /etc/letsencrypt/options-ssl-nginx.conf;
-        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-        location /.well-known/ {
-            alias /var/www/.well-known/;
-        }
+        #listen       443 ssl;
+        #ssl_certificate /etc/letsencrypt/live/localhost/fullchain.pem;
+        #ssl_certificate_key /etc/letsencrypt/live/localhost/privkey.pem;
+        #include /etc/letsencrypt/options-ssl-nginx.conf;
+        #ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+        #location /.well-known/ {
+        #    alias /var/www/.well-known/;
+        #}
 
         # Prevent browsers from incorrectly detecting non-scripts as scripts
         # https://wiki.mozilla.org/Security/Guidelines/Web_Security#X-Content-Type-Options
@@ -324,7 +346,7 @@ http {
 
         # Block pages from loading when they detect reflected XSS attacks
         # https://wiki.mozilla.org/Security/Guidelines/Web_Security#Content_Security_Policy
-        add_header Content-Security-Policy \"default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://stackpath.bootstrapcdn.com https://code.jquery.com https://cdnjs.cloudflare.com; img-src 'self'; style-src 'self' https://stackpath.bootstrapcdn.com; frame-ancestors 'none'\";
+        add_header Content-Security-Policy \"default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://stackpath.bootstrapcdn.com https://code.jquery.com https://cdnjs.cloudflare.com; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com https://fonts.googleapis.com https://use.fontawesome.com; font-src 'self' https://fonts.gstatic.com https://use.fontawesome.com; frame-ancestors 'none'\";
 
         # Load configuration files for the default server block.
         include /etc/nginx/default.d/*.conf;
@@ -364,8 +386,8 @@ http {
     require => [ Package['nginx'], Vcsrepo['/var/www/lvfs/admin'] ],
 }
 service { 'nginx':
-    ensure => 'running',
-    enable => true,
+    ensure  => 'running',
+    enable  => true,
     require => [ Package['nginx'], Package['uwsgi'] ],
 }
 
@@ -377,21 +399,21 @@ package { 'munin-plugins-ruby':
     ensure => installed,
 }
 service { 'munin-node':
-    ensure   => 'running',
-    enable   => true,
-    require  => Package["munin"],
+    ensure  => 'running',
+    enable  => true,
+    require => Package['munin'],
 }
 package { 'httpd-tools':
     ensure => installed,
 }
-exec { "munin-htpasswd":
-    command     => "/usr/bin/htpasswd -cb /etc/munin/munin-htpasswd ${munin_username} ${munin_password}",
-    unless      => "/usr/bin/test -s /etc/munin/munin-htpasswd",
-    require     => [ Package["munin"], Package['httpd-tools'] ],
+exec { 'munin-htpasswd':
+    command => "/usr/bin/htpasswd -cb /etc/munin/munin-htpasswd ${munin_username} ${munin_password}",
+    unless  => '/usr/bin/test -s /etc/munin/munin-htpasswd',
+    require => [ Package['munin'], Package['httpd-tools'] ],
 }
 file { '/etc/nginx/default.d/munin.conf':
-    ensure => "file",
-    content => "# Managed by Puppet, DO NOT EDIT
+    ensure  => 'file',
+    content => '# Managed by Puppet, DO NOT EDIT
 location /munin/static/ {
     alias /etc/munin/static/;
     expires modified +1w;
@@ -403,7 +425,7 @@ location /munin/ {
     alias /var/www/html/munin/;
     expires modified +310s;
 }
-",
+',
     require => Package['nginx'],
 }
 
@@ -418,12 +440,12 @@ package { 'clamav-server-systemd':
     ensure => installed,
 }
 exec { 'uwsgi virusgroup membership':
-    unless => "/bin/getent group virusgroup|/bin/cut -d: -f4|/bin/grep -q uwsgi",
-    command => "/usr/sbin/usermod -a -G virusgroup uwsgi",
+    unless  => '/bin/getent group virusgroup|/bin/cut -d: -f4|/bin/grep -q uwsgi',
+    command => '/usr/sbin/usermod -a -G virusgroup uwsgi',
     require => Package['uwsgi'],
 }
 file { '/etc/clamd.d/scan.conf':
-    ensure => "file",
+    ensure  => 'file',
     content => "# Managed by Puppet, DO NOT EDIT
 LogSyslog yes
 LocalSocket /var/run/clamd.scan/clamd.sock
@@ -442,19 +464,19 @@ MaxEmbeddedPE 100M
     require => Package['clamav'],
 }
 service { 'clamd@scan':
-    ensure => 'running',
-    enable => true,
+    ensure  => 'running',
+    enable  => true,
     require => [ Package['clamav'], File['/etc/clamd.d/scan.conf'] ],
 }
 
 # fixes permissions after a key has been imported
 file { '/var/www/lvfs/.gnupg':
-    ensure   => 'directory',
-    owner    => 'uwsgi',
-    group    => 'uwsgi',
-    require  => File['/var/www/lvfs'],
+    ensure  => 'directory',
+    owner   => 'uwsgi',
+    group   => 'uwsgi',
+    require => File['/var/www/lvfs'],
 }
 exec { 'gnupg-uwsgi-chown':
-    command  => "/bin/chown -R uwsgi:uwsgi /var/www/lvfs/.gnupg/",
-    require  => File['/var/www/lvfs/.gnupg'],
+    command => '/bin/chown -R uwsgi:uwsgi /var/www/lvfs/.gnupg/',
+    require => File['/var/www/lvfs/.gnupg'],
 }
