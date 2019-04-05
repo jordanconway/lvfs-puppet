@@ -281,7 +281,7 @@ harakiri = 180
 service { 'uwsgi':
     ensure    => 'running',
     enable    => true,
-    require   => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'],File['/var/uwsgi'] ],
+    require   => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'],File['/run/uwsgi'] ],
     subscribe => File['/var/www/lvfs/admin/app/custom.cfg'],
 }
 
