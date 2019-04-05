@@ -154,6 +154,13 @@ exec { 'pip_requirements_install':
     refreshonly => true,
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
 }
+exec { 'flask_db_upgrade':
+    command     => "${venvpath}/bin/flask db updrade",
+    cwd         => '/var/www/lvfs/admin',
+    refreshonly => true,
+    require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
+    subscribe   =>  Vcsrepo['/var/www/lvfs/admin'],
+}
 
 # required for the PKCS#7 support
 package { 'gnutls-utils':
@@ -253,9 +260,10 @@ harakiri = 180
     require => Package['uwsgi'],
 }
 service { 'uwsgi':
-    ensure  => 'running',
-    enable  => true,
-    require => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'] ],
+    ensure    => 'running',
+    enable    => true,
+    require   => [ Package['uwsgi'], File['/etc/uwsgi.d/lvfs.ini'] ],
+    subscribe => File['/var/www/lvfs/admin/app/custom.cfg'],
 }
 
 exec { 'nginx-uwsgi-membership':
