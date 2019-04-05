@@ -144,7 +144,7 @@ package { 'gobject-introspection-devel':
 }
 exec { 'virtualenv_create':
     command => "/usr/bin/virtualenv-3.6 ${venvpath}",
-    unless  => "test -d  ${venvpath}",
+    unless  => "/bin/test -d  ${venvpath}",
     require => [ Package['python36-virtualenv'] ],
 }
 exec { 'pip_requirements_install':
