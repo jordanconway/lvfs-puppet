@@ -1,5 +1,24 @@
 $venvpath = '/usr/lib/lvfs/env36'
+if $use_letsencrypt {
+  $nginx_letsencrypt =  @("END")
+ only allow http:// URIs
+if (\$scheme != \"https\") {
+    return 301 https://\$server_name\$request_uri;
+}
 
+ support SSL using Let's Encrypt
+listen       443 ssl;
+ssl_certificate /etc/letsencrypt/live/localhost/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/localhost/privkey.pem;
+include /etc/letsencrypt/options-ssl-nginx.conf;
+ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+location /.well-known/ {
+    alias /var/www/.well-known/;
+}
+| END
+} else {
+    $nginx_letsencrypt = ''
+}
 if $dbhost == 'localhost' {
     $dbsocket = '&unix_socket=/var/lib/mysql/mysql.sock'
     # set up the database
@@ -332,21 +351,8 @@ http {
         server_name  localhost;
         root         /usr/share/nginx/html;
         client_max_body_size 80M;
-
-        # only allow http:// URIs
-        #if (\$scheme != \"https\") {
-        #    return 301 https://\$server_name\$request_uri;
-        #}
-
-        # support SSL using Let's Encrypt
-        #listen       443 ssl;
-        #ssl_certificate /etc/letsencrypt/live/localhost/fullchain.pem;
-        #ssl_certificate_key /etc/letsencrypt/live/localhost/privkey.pem;
-        #include /etc/letsencrypt/options-ssl-nginx.conf;
-        #ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-        #location /.well-known/ {
-        #    alias /var/www/.well-known/;
-        #}
+        
+        ${nginx_letsencrypt}
 
         # Prevent browsers from incorrectly detecting non-scripts as scripts
         # https://wiki.mozilla.org/Security/Guidelines/Web_Security#X-Content-Type-Options
@@ -416,7 +422,7 @@ http {
 service { 'nginx':
     ensure  => 'running',
     enable  => true,
-    require => [ Package['nginx'], Package['uwsgi'] ],
+    require => [ Package['nginx'], Service['uwsgi'] ],
 }
 
 # allow monitoring server
