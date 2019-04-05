@@ -248,7 +248,7 @@ file { '/etc/tmpfiles.d/uwsgi.conf':
     content => 'D /run/uwsgi 0770 uwsgi uwsgi -',
     require => Package['uwsgi'],
 }
-file { '/var/uwsgi':
+file { '/run/uwsgi':
     ensure  => 'directory',
     owner   => 'uwsgi',
     group   => 'uwsgi',
