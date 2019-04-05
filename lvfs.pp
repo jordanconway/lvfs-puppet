@@ -156,7 +156,7 @@ exec { 'pip_requirements_install':
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
 }
 exec { 'flask_db_upgrade':
-    command     => "${venvpath}/bin/flask db updrade",
+    command     => "${venvpath}/bin/flask db upgrade",
     cwd         => '/var/www/lvfs/admin',
     refreshonly => true,
     require     => [ Vcsrepo['/var/www/lvfs/admin'], Package['python36-pip'], Exec['virtualenv_create'] ],
