@@ -132,7 +132,24 @@ MAIL_DEFAULT_SENDER = ('LVFS Admin Team', '${mail_sender}')
     require => [ File['/var/www/lvfs'], Package['uwsgi'], Vcsrepo['/var/www/lvfs/admin'] ],
 }
 
+yumrepo { 'hughes-lvfs-website':
+    baseurl             => 'https://copr-be.cloud.fedoraproject.org/results/rhughes/lvfs-website/epel-7-$basearch/',
+    descr               => 'Copr repo for lvfs-website owned by rhughes',
+    gpgkey              => 'https://copr-be.cloud.fedoraproject.org/results/rhughes/lvfs-website/pubkey.gpg',
+    gpgcheck            => 1,
+    repo_gpgcheck       => 0,
+    enabled             => 1,
+    skip_if_unavailable => 1,
+    require             => Package['puppetlabs-release-pc1'],
+}
+
 # python deps are installed using requirements.txt where possible
+package { 'libappstream-glib':
+    ensure => installed,
+}
+package { 'libgcab1':
+    ensure => installed,
+}
 package { 'bsdtar':
     ensure => installed,
 }
