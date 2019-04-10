@@ -140,15 +140,16 @@ yumrepo { 'hughes-lvfs-website':
     repo_gpgcheck       => 0,
     enabled             => 1,
     skip_if_unavailable => 1,
-    require             => Package['puppetlabs-release-pc1'],
 }
 
 # python deps are installed using requirements.txt where possible
 package { 'libappstream-glib':
-    ensure => installed,
+    ensure  => installed,
+    require => Yumrepo['hughes-lvfs-website'],
 }
 package { 'libgcab1':
-    ensure => installed,
+    ensure  => installed,
+    require => Yumrepo['hughes-lvfs-website'],
 }
 package { 'bsdtar':
     ensure => installed,
